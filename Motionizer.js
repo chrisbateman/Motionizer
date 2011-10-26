@@ -32,22 +32,15 @@ var Motionizer = function(elem, sensitivity) {
 	/**
 	 * Class variables
 	 * @private
-	 * @var _hasMotion				{Boolean} - Whether we can access device motion data
-	 * @var _element					{Element} - The DOM element to be animated
-	 * @var _motionAcceleration	{Event} - Last fired DeviceMotion event
-	 * @var _lastVals.x				{Number} - Last calculated value of X
-	 * @var _lastVals.y				{Number} - Last calculated value of Y
-	 * @var _lastVals.z				{Number} - Last calculated value of Z
-	 * @var _smoothing				{Number} - Smoothing value.
+	 * @var _hasMotion		{Boolean} - Whether we can access device motion data
+	 * @var _element			{Element} - The DOM element to be animated
+	 * @var _smoothing		{Number} - Smoothing value.
+	 * @var _orientation		{Number} - Device orientation [0, 90, 180, -90]
 	 */
 	var _hasMotion = !!window.DeviceMotionEvent;
 	var _element;
-	var _motionAcceleration = {};
-	var _lastX = 0;
-	var _lastY = 0;
-	var _lastZ = 0;
-	var _smoothing = sensitivity || 0.22;
-	
+	var _smoothing = sensitivity || 0.2;
+	var _orientation = 0;
 	
 	
 	/**
@@ -66,74 +59,132 @@ var Motionizer = function(elem, sensitivity) {
 		}
 		
 		window.addEventListener("devicemotion", function(ev) {
-			_motionAcceleration = ev.accelerationIncludingGravity;
+			_acceleration.ev = ev.accelerationIncludingGravity;
 		}, false);
+		
+		window.addEventListener("orientationchange", function(ev) {
+			_orientation = window.orientation;
+		}, false);
+		
+		_orientation = window.orientation;
 		
 		_animate();
 	}
 	
 	
 	
-	/** 
+	/**
+	 * @class
 	 * @private
-	 * @returns {Number} Smoothed value of X
 	 */
-	var _getAccelX = function() {
-		_lastX = _smooth(_motionAcceleration.x || 0, _lastX);
-		return _lastX.toFixed(2);
-	}
-	
-	/** 
-	 * @private
-	 * @returns {Number} Smoothed value of Y
-	 */
-	var _getAccelY = function() {
-		_lastY = _smooth(_motionAcceleration.y || 0, _lastY);
-		return _lastY.toFixed(2);
-	}
-	
-	/** 
-	 * @private
-	 * @returns {Number} Smoothed value of Z
-	 */
-	var _getAccelZ = function() {
-		_lastZ = _smooth(_motionAcceleration.z || 0, _lastZ);
-		return _lastZ.toFixed(2);
-	}
-	
-	/** 
-	 * @private
-	 * @description High pass smoothing filter
-	 * @param {Number} newVal The current value
-	 * @param {Number} oldVal The last recorded value
-	 * @returns {Number} Smoothed value
-	 */
-	var _smooth = function(newVal, oldVal) {
-		return (newVal * _smoothing) + (oldVal * (1.0 - _smoothing));
-	}
-	
-	/** 
-	 * @private
-	 * @param {Number} accel Value of X
-	 * @param {Number} z Value of Z
-	 * @returns {Number} Value of X in degrees
-	 */
-	var  _getXDeg = function(accel, z) {
-		return -(accel * 9);
-	}
-	/** 
-	 * @private
-	 * @param {Number} accel Value of Y
-	 * @param {Number} z Value of Z
-	 * @returns {Number} Value of Y in degrees
-	 */
-	var _getYDeg = function(accel, z) {
-		var val = accel * 9;
-		if (z > 0) {
-			val = (180 - val);
+	var _acceleration = {
+		ev: {},
+		lastX: 0,
+		lastY: 0,
+		lastZ: -0,
+		
+		/** 
+		 * @private
+		 * @returns {Number} Smoothed value of X
+		 */
+		getAccelX: function() {
+			_acceleration.lastX = _acceleration.smooth(_acceleration.ev.x || 0, _acceleration.lastX);
+			return _acceleration.lastX;
+		},
+		
+		/** 
+		 * @private
+		 * @returns {Number} Smoothed value of Y
+		 */
+		getAccelY: function() {
+			_acceleration.lastY = _acceleration.smooth(_acceleration.ev.y || 0, _acceleration.lastY);
+			return _acceleration.lastY;
+		},
+		
+		/** 
+		 * @private
+		 * @returns {Number} Smoothed value of Z
+		 */
+		getAccelZ: function() {
+			_acceleration.lastZ = _acceleration.smooth(_acceleration.ev.z || -0, _acceleration.lastZ);
+			return _acceleration.lastZ;
+		},
+		
+		/** 
+		 * @private
+		 * @description High pass smoothing filter
+		 * @param {Number} newVal The current value
+		 * @param {Number} oldVal The last recorded value
+		 * @returns {Number} Smoothed value
+		 */
+		smooth: function(newVal, oldVal) {
+			return (newVal * _smoothing) + (oldVal * (1.0 - _smoothing));
+		},
+		
+		/** 
+		 * @private
+		 * @returns {Number} Value of X in degrees
+		 */
+		convertXDeg: function() {
+			return _acceleration.lastX * 9;
+		},
+		
+		/** 
+		 * @private
+		 * @returns {Number} Value of Y in degrees
+		 */
+		convertYDeg: function() {
+			var val = _acceleration.lastY * 9;
+			if (_acceleration.lastZ > 0) {
+				val = (180 - val);
+			}
+			return val;
+		},
+		
+		/** 
+		 * @private
+		 * @returns {Number} Value of X in degrees, corrected for device orientation.
+		 */
+		getXDeg: function() {
+			switch (_orientation) {
+				case 90:
+					return -_acceleration.convertXDeg();
+					break;
+				case 0:
+					return -_acceleration.convertYDeg();
+					break;
+				case -90:
+					return _acceleration.convertXDeg();
+					break;
+				case 180:
+					return _acceleration.convertYDeg();
+					break;
+			}
+		},
+		
+		/** 
+		 * @private
+		 * @returns {Number} Value of Y in degrees, corrected for device orientation.
+		 */
+		getYDeg: function() {
+			switch (_orientation) {
+				case 90:
+					return _acceleration.convertYDeg();
+					break;
+				case 0:
+					return -_acceleration.convertXDeg();
+					break;
+				case -90:
+					return -_acceleration.convertYDeg();
+					break;
+				case 180:
+					return _acceleration.convertXDeg();
+					break;
+			}
 		}
-		return -val;
-	}
+	};
+	
+	
 	
 	/** 
 	 * @private
@@ -141,17 +192,19 @@ var Motionizer = function(elem, sensitivity) {
 	var _animate = function() {
 		requestAnimFrame(_animate);
 		
-		var z = _getAccelZ();
+		var x = _acceleration.getAccelX();
+		var y = _acceleration.getAccelY();
+		var z = _acceleration.getAccelZ();
 		
-		var xDeg = _getXDeg(_getAccelX(), z);
-		var yDeg = _getYDeg(_getAccelY(), z);
+		var xDeg = _acceleration.getXDeg();
+		var yDeg = _acceleration.getYDeg();
 		
-		var style = "rotateX(" + yDeg + "deg) rotateY(" + xDeg + "deg)";
-
+		var style = "rotateX(" + xDeg + "deg) rotateY(" + yDeg + "deg)";
 		_element.style.webkitTransform = style;
 		_element.style.mozTransform = style;
 		_element.style.transform = style;
 	};
+	
 	
 	
 	_init();
