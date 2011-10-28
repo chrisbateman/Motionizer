@@ -1,16 +1,9 @@
 /**
- * @fileOverview Rotates an element in 3d space relative to device motion
- * @author Chris Bateman
- * @version 1.0
- */
-
-
-/**
  * @class Motionizer
  * @param {String|Element} elem The Id of the element to manipulate, or a reference to the element.
- * @param {Number} [sensitivity] Constant for smoothing motion values. (0.0 < n <= 1.0) Default is 0.22.
+ * @param {Boolean} [rotateZ] Whether to rotate the element around the Z-axis. Default is true.
  */
-var Motionizer = function(elem, sensitivity) {
+var Motionizer = function(elem, rotateZ) {
 	
 	/**
 	 * @function
@@ -32,15 +25,14 @@ var Motionizer = function(elem, sensitivity) {
 	/**
 	 * Class variables
 	 * @private
-	 * @var _hasMotion		{Boolean} - Whether we can access device motion data
-	 * @var _element			{Element} - The DOM element to be animated
-	 * @var _smoothing		{Number} - Smoothing value.
-	 * @var _orientation		{Number} - Device orientation [0, 90, 180, -90]
+	 * @var _hasDeviceOrientation	{Boolean} - Whether we can access device motion data
+	 * @var _element						{Element} - The DOM element to be animated
+	 * @var _windowOrientation		{Number} - Device orientation [0, 90, 180, -90]
 	 */
-	var _hasMotion = !!window.DeviceMotionEvent;
+	var _hasDeviceOrientation = !!window.DeviceOrientationEvent;
 	var _element;
-	var _smoothing = sensitivity || 0.2;
-	var _orientation = 0;
+	var _rotateZ = (typeof rotateZ == "undefined") ? true : rotateZ;
+	var _windowOrientation = 0;
 	
 	
 	/**
@@ -48,7 +40,7 @@ var Motionizer = function(elem, sensitivity) {
 	 * @private
 	 */
 	var _init = function() {
-		if (!_hasMotion) {
+		if (!_hasDeviceOrientation) {
 			return;
 		}
 		
@@ -58,15 +50,15 @@ var Motionizer = function(elem, sensitivity) {
 			_element = document.getElementById(elem);
 		}
 		
-		window.addEventListener("devicemotion", function(ev) {
-			_acceleration.ev = ev.accelerationIncludingGravity;
+		window.addEventListener("deviceorientation", function(ev) {
+			_orientationHelper.ev = ev;
 		}, false);
 		
 		window.addEventListener("orientationchange", function(ev) {
-			_orientation = window.orientation;
+			_windowOrientation = window.orientation;
 		}, false);
 		
-		_orientation = window.orientation;
+		_windowOrientation = window.orientation;
 		
 		_animate();
 	}
@@ -77,112 +69,82 @@ var Motionizer = function(elem, sensitivity) {
 	 * @class
 	 * @private
 	 */
-	var _acceleration = {
+	var _orientationHelper = {
+		/**
+		 * @var ev	{Event} - Last fired DeviceOrientation event
+		 */
 		ev: {},
-		lastX: 0,
-		lastY: 0,
-		lastZ: -0,
 		
-		/** 
-		 * @private
-		 * @returns {Number} Smoothed value of X
+		/**
+		 * @returns {Number} Value of X
 		 */
-		getAccelX: function() {
-			_acceleration.lastX = _acceleration.smooth(_acceleration.ev.x || 0, _acceleration.lastX);
-			return _acceleration.lastX;
+		getX: function() {
+			return _orientationHelper.ev.gamma || 0;
 		},
 		
-		/** 
-		 * @private
-		 * @returns {Number} Smoothed value of Y
+		/**
+		 * @returns {Number} Value of Y
 		 */
-		getAccelY: function() {
-			_acceleration.lastY = _acceleration.smooth(_acceleration.ev.y || 0, _acceleration.lastY);
-			return _acceleration.lastY;
+		getY: function() {
+			return _orientationHelper.ev.beta || 0;
 		},
 		
-		/** 
-		 * @private
-		 * @returns {Number} Smoothed value of Z
+		/**
+		 * @returns {Number} Value of Z
 		 */
-		getAccelZ: function() {
-			_acceleration.lastZ = _acceleration.smooth(_acceleration.ev.z || -0, _acceleration.lastZ);
-			return _acceleration.lastZ;
+		getOrientZ: function() {
+			return _orientationHelper.ev.alpha || 0;
 		},
 		
-		/** 
-		 * @private
-		 * @description High pass smoothing filter
-		 * @param {Number} newVal The current value
-		 * @param {Number} oldVal The last recorded value
-		 * @returns {Number} Smoothed value
-		 */
-		smooth: function(newVal, oldVal) {
-			return (newVal * _smoothing) + (oldVal * (1.0 - _smoothing));
-		},
 		
-		/** 
-		 * @private
-		 * @returns {Number} Value of X in degrees
-		 */
-		convertXDeg: function() {
-			return _acceleration.lastX * 9;
-		},
-		
-		/** 
-		 * @private
-		 * @returns {Number} Value of Y in degrees
-		 */
-		convertYDeg: function() {
-			var val = _acceleration.lastY * 9;
-			if (_acceleration.lastZ > 0) {
-				val = (180 - val);
-			}
-			return val;
-		},
-		
-		/** 
-		 * @private
+		/**
 		 * @returns {Number} Value of X in degrees, corrected for device orientation.
 		 */
 		getXDeg: function() {
-			switch (_orientation) {
+			switch (_windowOrientation) {
 				case 90:
-					return -_acceleration.convertXDeg();
+					return -_orientationHelper.getX();
 					break;
 				case 0:
-					return -_acceleration.convertYDeg();
+					return _orientationHelper.getY();
 					break;
 				case -90:
-					return _acceleration.convertXDeg();
+					return _orientationHelper.getX();
 					break;
 				case 180:
-					return _acceleration.convertYDeg();
+					return _orientationHelper.getY();
 					break;
 			}
 		},
 		
-		/** 
-		 * @private
+		/**
 		 * @returns {Number} Value of Y in degrees, corrected for device orientation.
 		 */
 		getYDeg: function() {
-			switch (_orientation) {
+			switch (_windowOrientation) {
 				case 90:
-					return _acceleration.convertYDeg();
+					return -_orientationHelper.getY();
 					break;
 				case 0:
-					return -_acceleration.convertXDeg();
+					return -_orientationHelper.getX();
 					break;
 				case -90:
-					return -_acceleration.convertYDeg();
+					return _orientationHelper.getY();
 					break;
 				case 180:
-					return _acceleration.convertXDeg();
+					return _orientationHelper.getX();
 					break;
 			}
+		},
+		
+		/**
+		 * @returns {Number} Value of Z in degrees, corrected for device orientation.
+		 */
+		getZDeg: function() {
+			return _orientationHelper.getOrientZ();
 		}
 	};
+	
 	
 	
 	
@@ -192,19 +154,15 @@ var Motionizer = function(elem, sensitivity) {
 	var _animate = function() {
 		requestAnimFrame(_animate);
 		
-		var x = _acceleration.getAccelX();
-		var y = _acceleration.getAccelY();
-		var z = _acceleration.getAccelZ();
+		var style = "rotateX(" + _orientationHelper.getXDeg() + "deg) rotateY(" + _orientationHelper.getYDeg() + "deg)";
+		if (_rotateZ) {
+			style += "rotateZ(" + _orientationHelper.getZDeg() + "deg)";
+		}
 		
-		var xDeg = _acceleration.getXDeg();
-		var yDeg = _acceleration.getYDeg();
-		
-		var style = "rotateX(" + xDeg + "deg) rotateY(" + yDeg + "deg)";
 		_element.style.webkitTransform = style;
 		_element.style.mozTransform = style;
 		_element.style.transform = style;
 	};
-	
 	
 	
 	_init();
