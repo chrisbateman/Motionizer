@@ -10,6 +10,6 @@ Include the script on your page and simply call the Motionizer function, passing
 	// or
 	Motionizer("elementId", false);
 	// or
-	Motionizer(document.getElementById("elementId");
+	Motionizer(document.getElementById("elementId"));
 
 Remember that if you want a perspective effect to be applied to the element, you need to add a [perspective style](https://developer.mozilla.org/en/CSS/perspective) to a parent element. You can see a demo [here](http://cbateman.com/demos/accelerometer/motionizer.htm).
