@@ -4,7 +4,7 @@ Motionizer moves rotates an element in 3d space (using CSS3 transforms), based o
 
 ## Usage
 
-Include the script on your page and simply call the Motionizer function, passing in the element to apply the effect to. An option second parameter (a boolean) controls whether the element should rotate around the z-axis.
+Include the script on your page and simply call the Motionizer function, passing in the element to apply the effect to. An optional second parameter (a boolean) controls whether the element should rotate around the z-axis.
 
 	Motionizer("elementId");
 	// or
